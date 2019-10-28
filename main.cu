@@ -5,6 +5,18 @@
 using namespace cv;
 using namespace std;
 
+#define CUDA_ERR_HANDLE(err) (CudaErrorHandler(err, __FILE__, __LINE__))
+
+int CudaErrorHandler(cudaError_t err, const char* file, int line)
+{
+	if(err != cudaSuccess)
+	{
+		cout<<file<<" no."<<line<<" error : "<<cudaGetErrorString(err)<<endl;
+		return 1;
+	}
+	return 0;
+}
+
 void GenerateGaussKernel(int size, float sigma, float* kernel);
 unsigned char GetPixelVal(unsigned char* img, int img_height, int img_width, int i, int j);
 void Gauss(unsigned char* img, int img_width, int img_height, float* kernel, int kernel_size, unsigned char* output);
@@ -15,6 +27,9 @@ void DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, un
 __device__ unsigned char CUDA_GetPixelVal(unsigned char* img, int img_height, int img_width, int i, int j);
 __global__ void CUDA_Gauss(unsigned char* img, int img_width, int img_height, float* kernel, int kernel_size, unsigned char* output);
 __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, short* sobel_x, short* sobel_y, unsigned char* output);
+__global__ void CUDA_Sobel_x(unsigned char* img, int img_width, int img_height, short* sobel_x);
+__global__ void CUDA_Sobel_y(unsigned char* img, int img_width, int img_height, short* sobel_y);
+__global__ void CUDA_Sobel_sqrt(int img_width, int img_height, short* sobel_x, short* sobel_y, unsigned char* output);
 
 int main(int argc, char** argv)
 {
@@ -30,13 +45,14 @@ int main(int argc, char** argv)
 	}
 
 	
-	int width = 1000;
-	int height = 800;
+	int width = 480;
+	int height = 360;
 	int gauss_kernel_size = 3;
 	
-	int thread_size = 512;
+	int thread_size = 1024;
 	int block_size  = (width * height + thread_size - 1) / thread_size;
 	
+
 	/*****cpu memory*****/
 	unsigned char* gauss = new unsigned char[width * height];
 
@@ -67,12 +83,25 @@ int main(int argc, char** argv)
 	unsigned char* cuda_sobel;
 	cudaMalloc(&cuda_sobel, width * height * sizeof(unsigned char));
 	
+	VideoCapture camera(0);
+	//camera.open("/home/katsuto/Pictures/Wallpapers/video.MP4");
+	Mat img_src;
+ 	//img_src	= imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
+	Mat img_gray, img_gauss, img_sobel, img_canny;
+	
 	while(1)
 	{
+		/*camera >> img_src;
+		imshow("img_src", img_src);
+		if('q' == waitKey(100))
+		{
+			break;
+		}
+		continue;*/
 		if(cpu_gpu == 0)
 		{
-			Mat img_src   = imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
-			Mat img_gray, img_gauss, img_sobel, img_canny;
+			camera >> img_src;
+ 	        //img_src	= imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
 			cvtColor(img_src, img_gray, CV_BGR2GRAY);
 			
 			resize(img_gray, img_gray, Size(width, height), 0, 0);
@@ -89,30 +118,70 @@ int main(int argc, char** argv)
 		else
 		{
 			/*read image*/
-			Mat img_src   = imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
-			Mat img_gray, img_gauss, img_sobel, img_canny;
+			cout<<"gpu"<<endl;
+			camera >> img_src;
+			//imshow("img_src", img_src);
+ 			//img_src	= imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
+			resize(img_src, img_src, Size(width, height), 0, 0);
 			cvtColor(img_src, img_gray, CV_BGR2GRAY);
-			resize(img_gray, img_gray, Size(width, height), 0, 0);
-			imshow("img_gray", img_gray);
+			//imshow("img_gray", img_gray);
+			//waitKey(100);
+			//continue;
+			
 			
 			/*load into gpu*/
-			cudaMemcpy(cuda_gray, img_gray.data, width * height * sizeof(unsigned char), cudaMemcpyHostToDevice);
+			if(CUDA_ERR_HANDLE(cudaMemcpy(cuda_gray, img_gray.data, width * height * sizeof(unsigned char), cudaMemcpyHostToDevice)))
+			{
+				cout<<"memcpy fail1"<<endl;
+				continue;
+			}
 			
 			/*gauss filter*/
 			CUDA_Gauss<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_gauss_kernel, gauss_kernel_size, cuda_gauss);
-			//cudaMemcpy(gauss, cuda_gauss, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-			//img_gauss = Mat(Size(width, height), CV_8UC1, gauss);
+			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
+			{
+				cout<<"syn fail"<<endl;
+				continue;
+			}
+			if(CUDA_ERR_HANDLE(cudaMemcpy(gauss, cuda_gauss, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost)))
+			{
+				cout<<"memcpy fail2"<<endl;
+				continue;
+			}
+			img_gauss = Mat(Size(width, height), CV_8UC1, gauss);
 			//imshow("img_gauss_cuda", img_gauss);
-		
+	        
 			/*sobel edge detection*/
-			CUDA_Sobel<<<block_size, thread_size>>>(cuda_gauss, width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
-			cudaMemcpy(sobel, cuda_sobel, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+			//CUDA_Sobel<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
+			CUDA_Sobel_x<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_sobel_x);
+			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
+			{
+				cout<<"syn fail2"<<endl;
+				continue;
+			}
+			CUDA_Sobel_y<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_sobel_y);
+			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
+			{
+				cout<<"syn fail3"<<endl;
+				continue;
+			}
+			CUDA_Sobel_sqrt<<<block_size, thread_size>>>(width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
+			if(CUDA_ERR_HANDLE(cudaMemcpy(sobel, cuda_sobel, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost)))
+			{
+				cout<<"memcpy fail3"<<endl;
+				continue;
+			}
 			img_sobel = Mat(Size(width, height), CV_8UC1, sobel);
-			imshow("img_sobel_gpu", img_sobel);
-
+			imshow("img_sobel_gpu", img_sobel);	
+			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
+			{
+				cout<<"syn fail4"<<endl;
+				continue;
+			}
 		}
-		waitKey(0);
-		break;
+		if(waitKey(1) == 'q')
+			break;
+		//break;
 	}
 
 	cudaFree(cuda_gray);
@@ -188,30 +257,83 @@ __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, sh
 	*(sobel_x + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (1) +
 			           		  		 CUDA_GetPixelVal(img, img_height, img_width, i-1, j  ) * (2) +
 	                        	     CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
-	                           	     CUDA_GetPixelVal(img, img_height, img_width, i  , j-1) * (0) +
-	                             	 CUDA_GetPixelVal(img, img_height, img_width, i  , j  ) * (0) +
-	                                 CUDA_GetPixelVal(img, img_height, img_width, i  , j+1) * (0) +
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j  ) * (-2) +
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (-1);
+	__syncthreads();
 
-
-	*(sobel_y + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (-1) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i-1, j  ) * (0) +
+	/**(sobel_y + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (-1) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j-1) * (-2) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j  ) * (0) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j+1) * (2) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j  ) * (0) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (1);
+	__syncthreads();
+	*/
 
+	*(output + i * img_width + j) = *(sobel_x + i * img_width + j);
+	//float val =sqrt(pow(*(sobel_x + i * img_width + j), 2) + pow(*(sobel_y + i * img_width + j), 2));
+	//*(output + i * img_width + j) = val;
+	/*if(val > 255)
+		*(output + i * img_width + j) = 255;
+	else
+		*(output + i * img_width + j) = val;*/
+}
+
+__global__ void CUDA_Sobel_x(unsigned char* img, int img_width, int img_height, short* sobel_x)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = id / img_width;
+	int j = id % img_width;
+	
+	if(id >= img_width * img_height)
+		return;
+
+	*(sobel_x + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (1) +
+			           		  		 CUDA_GetPixelVal(img, img_height, img_width, i-1, j  ) * (2) +
+	                        	     CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
+	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
+	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j  ) * (-2) +
+	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (-1);
+	__syncthreads(); 
+}
+
+__global__ void CUDA_Sobel_y(unsigned char* img, int img_width, int img_height, short* sobel_y)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = id / img_width;
+	int j = id % img_width;
+	
+	if(id >= img_width * img_height)
+		return;
+
+	*(sobel_y + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (-1) +
+		                             CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
+		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j-1) * (-2) +
+		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j+1) * (2) +
+		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
+		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (1);
+	__syncthreads();
+}
+
+__global__ void CUDA_Sobel_sqrt(int img_width, int img_height, short* sobel_x, short* sobel_y, unsigned char* output)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = id / img_width;
+	int j = id % img_width;
+	
+	if(id >= img_width * img_height)
+		return;	
+
+	//*(output + i * img_width + j) = (unsigned char)*(sobel_x + i * img_width + j);
 	float val =sqrt(pow(*(sobel_x + i * img_width + j), 2) + pow(*(sobel_y + i * img_width + j), 2));
+	*(output + i * img_width + j) = val;
 	if(val > 255)
 		*(output + i * img_width + j) = 255;
 	else
-		*(output + i * img_width + j) = val;	
+		*(output + i * img_width + j) = val;
 }
+
 
 void GenerateGaussKernel(int size, float sigma, float* kernel)
 {
@@ -306,3 +428,4 @@ void DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, un
 {
 	
 }
+
