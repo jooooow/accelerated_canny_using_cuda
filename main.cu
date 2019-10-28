@@ -45,8 +45,8 @@ int main(int argc, char** argv)
 	}
 
 	
-	int width = 480;
-	int height = 360;
+	int width = 1280;
+	int height = 960;
 	int gauss_kernel_size = 3;
 	
 	int thread_size = 1024;
