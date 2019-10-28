@@ -18,16 +18,23 @@ __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, sh
 
 int main(int argc, char** argv)
 {
-	int cpu_gpu = 1;
-	//cout<<(int)memcmp(argv[1], "gpu", 3)<<" "<<(int)memcmp(argv[1], "cpu", 3)<<endl;
+	int cpu_gpu = 0;
+	if(argc >= 2 && strcmp(argv[1], "gpu") == 0)
+	{
+		cout<<"---canny acceleration[GPU]!---"<<endl;
+		cpu_gpu = 1;
+	}
+	else
+	{
+		cout<<"---canny acceleration[CPU]!---"<<endl;
+	}
 
-	cout<<"---canny kasoku!---"<<endl;
 	
-	int width = 1280;
-	int height = 960;
+	int width = 1000;
+	int height = 800;
 	int gauss_kernel_size = 3;
 	
-	int thread_size = 1024;
+	int thread_size = 512;
 	int block_size  = (width * height + thread_size - 1) / thread_size;
 	
 	/*****cpu memory*****/
@@ -64,7 +71,7 @@ int main(int argc, char** argv)
 	{
 		if(cpu_gpu == 0)
 		{
-			Mat img_src   = imread("/home/katsuto/Pictures/Wallpapers/timg.jpeg");
+			Mat img_src   = imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
 			Mat img_gray, img_gauss, img_sobel, img_canny;
 			cvtColor(img_src, img_gray, CV_BGR2GRAY);
 			
@@ -82,7 +89,7 @@ int main(int argc, char** argv)
 		else
 		{
 			/*read image*/
-			Mat img_src   = imread("/home/katsuto/Pictures/Wallpapers/timg.jpeg");
+			Mat img_src   = imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
 			Mat img_gray, img_gauss, img_sobel, img_canny;
 			cvtColor(img_src, img_gray, CV_BGR2GRAY);
 			resize(img_gray, img_gray, Size(width, height), 0, 0);
