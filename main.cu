@@ -22,14 +22,13 @@ unsigned char GetPixelVal(unsigned char* img, int img_height, int img_width, int
 void Gauss(unsigned char* img, int img_width, int img_height, float* kernel, int kernel_size, unsigned char* output);
 void Sobel(unsigned char* img, int img_width, int img_height, short* sobel_x, short* sobel_y, unsigned char* output);
 void NoneMaxSuppress(unsigned char* sobel, int sobel_width, int sobel_height, short* sobel_x, short* sobel_y, unsigned char* output);
-void DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, unsigned char* canny);
+void DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, int min_val, int max_val, unsigned char* canny);
 
 __device__ unsigned char CUDA_GetPixelVal(unsigned char* img, int img_height, int img_width, int i, int j);
 __global__ void CUDA_Gauss(unsigned char* img, int img_width, int img_height, float* kernel, int kernel_size, unsigned char* output);
 __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, short* sobel_x, short* sobel_y, unsigned char* output);
-__global__ void CUDA_Sobel_x(unsigned char* img, int img_width, int img_height, short* sobel_x);
-__global__ void CUDA_Sobel_y(unsigned char* img, int img_width, int img_height, short* sobel_y);
-__global__ void CUDA_Sobel_sqrt(int img_width, int img_height, short* sobel_x, short* sobel_y, unsigned char* output);
+__global__ void CUDA_NoneMaxSuppress(unsigned char* sobel, int sobel_width, int sobel_height, short* sobel_x, short* sobel_y, unsigned char* output);
+__global__ void CUDA_DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, int min_val, int max_val, unsigned char* canny);
 
 int main(int argc, char** argv)
 {
@@ -43,15 +42,13 @@ int main(int argc, char** argv)
 	{
 		cout<<"---canny acceleration[CPU]!---"<<endl;
 	}
-
 	
-	int width = 960;
-	int height = 720;
+	int width = 640;
+	int height = 480;
 	int gauss_kernel_size = 3;
 	
 	int thread_size = 1024;
 	int block_size  = (width * height + thread_size - 1) / thread_size;
-	
 
 	/*****cpu memory*****/
 	unsigned char* gauss = new unsigned char[width * height];
@@ -62,6 +59,8 @@ int main(int argc, char** argv)
 	short* sobel_x = new short[width * height];
 	short* sobel_y = new short[width * height];
 	unsigned char* sobel = new unsigned char[width * height];
+
+	unsigned char* canny = new unsigned char[width * height];
 
 	/*****gpu memory*****/
 	unsigned char* cuda_gray;
@@ -83,6 +82,10 @@ int main(int argc, char** argv)
 	unsigned char* cuda_sobel;
 	cudaMalloc(&cuda_sobel, width * height * sizeof(unsigned char));
 	
+	unsigned char* cuda_canny;
+	cudaMalloc(&cuda_canny, width * height * sizeof(unsigned char));
+
+
 	VideoCapture camera(0);
 	//camera.open("/home/katsuto/Pictures/Wallpapers/video.MP4");
 	Mat img_src;
@@ -107,6 +110,14 @@ int main(int argc, char** argv)
 			Sobel(gauss, width, height, sobel_x, sobel_y, sobel);
 			img_sobel = Mat(Size(width, height), CV_8UC1, sobel);
 			imshow("img_sobel", img_sobel);
+		
+			NoneMaxSuppress(sobel, width, height, sobel_x, sobel_y, sobel);
+			//img_sobel = Mat(Size(width, height), CV_8UC1, sobel);
+			//imshow("img_suppress", img_sobel);
+
+			DoubleThreshold(sobel, width, height, 30, 130, canny);
+			img_canny = Mat(Size(width, height), CV_8UC1, canny);
+			imshow("img_canny", img_canny);
 		}
 		else
 		{
@@ -128,13 +139,21 @@ int main(int argc, char** argv)
 			
 			/*sobel edge detection*/
 			CUDA_Sobel<<<block_size, thread_size>>>(cuda_gauss, width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
-			if(CUDA_ERR_HANDLE(cudaMemcpy(sobel, cuda_sobel, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost)))
+			
+			/*none max suppress*/
+			CUDA_NoneMaxSuppress<<<block_size, thread_size>>>(cuda_sobel, width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
+			cudaDeviceSynchronize();
+
+			/*double threshold*/
+			CUDA_DoubleThreshold<<<block_size, thread_size>>>(cuda_sobel, width, height, 30, 130, cuda_canny);
+			
+			if(CUDA_ERR_HANDLE(cudaMemcpy(canny, cuda_canny, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost)))
 			{
 				cout<<"memcpy fail2"<<endl;
 				continue;
 			}
-			img_sobel = Mat(Size(width, height), CV_8UC1, sobel);
-			imshow("img_sobel_gpu", img_sobel);	
+			img_canny = Mat(Size(width, height), CV_8UC1, canny);
+			imshow("img_canny_gpu", img_canny);	
 		}
 		if(waitKey(1) == 'q')
 			break;
@@ -147,6 +166,7 @@ int main(int argc, char** argv)
 	cudaFree(cuda_sobel_x);
 	cudaFree(cuda_sobel_y);
 	cudaFree(cuda_sobel);
+	cudaFree(cuda_canny);
 
 	delete[] gauss;
 	gauss = nullptr;
@@ -154,7 +174,8 @@ int main(int argc, char** argv)
 	gauss_kernel = nullptr;
 	delete[] sobel_x;
 	sobel_x = nullptr;
-
+	delete[] canny;
+	canny = nullptr;
 	delete[] sobel_y;
 	sobel_y = nullptr;
 	delete[] sobel;
@@ -217,7 +238,6 @@ __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, sh
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j  ) * (-2) +
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (-1);
-	//__syncthreads();
 
 	*(sobel_y + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (-1) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
@@ -225,9 +245,7 @@ __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, sh
 		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j+1) * (2) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (1);
-	//__syncthreads();
-
-	//*(output + i * img_width + j) = *(sobel_x + i * img_width + j);
+	
 	float val =sqrt(pow(*(sobel_x + i * img_width + j), 2) + pow(*(sobel_y + i * img_width + j), 2));
 	*(output + i * img_width + j) = val;
 	if(val > 255)
@@ -235,61 +253,6 @@ __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, sh
 	else
 		*(output + i * img_width + j) = val;
 }
-
-__global__ void CUDA_Sobel_x(unsigned char* img, int img_width, int img_height, short* sobel_x)
-{
-	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	int i = id / img_width;
-	int j = id % img_width;
-	
-	if(id >= img_width * img_height)
-		return;
-
-	*(sobel_x + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (1) +
-			           		  		 CUDA_GetPixelVal(img, img_height, img_width, i-1, j  ) * (2) +
-	                        	     CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
-	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
-	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j  ) * (-2) +
-	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (-1);
-	__syncthreads(); 
-}
-
-__global__ void CUDA_Sobel_y(unsigned char* img, int img_width, int img_height, short* sobel_y)
-{
-	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	int i = id / img_width;
-	int j = id % img_width;
-	
-	if(id >= img_width * img_height)
-		return;
-
-	*(sobel_y + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (-1) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j-1) * (-2) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j+1) * (2) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
-		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (1);
-	__syncthreads();
-}
-
-__global__ void CUDA_Sobel_sqrt(int img_width, int img_height, short* sobel_x, short* sobel_y, unsigned char* output)
-{
-	int id = blockIdx.x * blockDim.x + threadIdx.x;
-	int i = id / img_width;
-	int j = id % img_width;
-	
-	if(id >= img_width * img_height)
-		return;	
-
-	//*(output + i * img_width + j) = (unsigned char)*(sobel_x + i * img_width + j);
-	float val =sqrt(pow(*(sobel_x + i * img_width + j), 2) + pow(*(sobel_y + i * img_width + j), 2));
-	*(output + i * img_width + j) = val;
-	if(val > 255)
-		*(output + i * img_width + j) = 255;
-	else
-		*(output + i * img_width + j) = val;
-}
-
 
 void GenerateGaussKernel(int size, float sigma, float* kernel)
 {
@@ -375,13 +338,221 @@ void Sobel(unsigned char* img, int img_width, int img_height, short* sobel_x, sh
 	}
 }
 
-void NoneMaxSuppress(unsigned char* sobel, int sobel_width, int sobel_height, short* sobel_x, short* sobel_y, unsigned char* output)
+__global__ void CUDA_NoneMaxSuppress(unsigned char* sobel, int sobel_width, int sobel_height, short* sobel_x, short* sobel_y, unsigned char* output)
 {
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = id / sobel_width;
+	int j = id % sobel_width;
 	
+	if(id >= sobel_width * sobel_height)
+		return;
+	
+	if(i == 0 || j == 0)
+	{
+		*(output + i * sobel_width + j) = 0;
+	}
+	else 
+	{
+		short gx = *(sobel_x + i * sobel_width + j);
+		short gy = *(sobel_y + i * sobel_width + j);
+		short g1,g2,g3,g4;
+		float weight = 0.0f;
+		if(gx == 0 || gy == 0)
+		{
+			*(output + i * sobel_width + j) = 0;
+		}
+		else
+		{
+			if(abs(gx) < abs(gy) && gx * gy >= 0)
+			{
+				weight = (float)abs(gx) / abs(gy);
+				g1 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i    , j + 1);
+				g2 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j + 1);
+				g3 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i    , j - 1);
+				g4 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j - 1);
+			}
+			else if(abs(gx) >= abs(gy) && gx * gy > 0)
+			{
+				weight = (float)abs(gy) / abs(gx);
+				g1 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j    );
+				g2 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j + 1);
+				g3 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j    );
+				g4 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j - 1);
+			}
+			else if(abs(gx) > abs(gy) && gx * gy <= 0)
+			{
+				weight = (float)abs(gy) / abs(gx);
+				g1 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j    );
+				g2 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j - 1);
+				g3 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j    );
+				g4 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j + 1);
+			}
+			else if(abs(gx) <= abs(gy) && gx * gy < 0)
+			{
+				weight = (float)abs(gx) / abs(gy);
+				g1 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i    , j - 1);
+				g2 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j - 1);
+				g3 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i    , j + 1);
+				g4 = CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j + 1);
+			}
+			else
+			{
+				printf("invalid gradient\n");
+			}
+			int dot1 = g1 * (1 - weight) + g2 * weight;
+			int dot2 = g3 * (1 - weight) + g4 * weight;
+			if(*(sobel + i * sobel_width + j) > dot1 && *(sobel + i * sobel_width + j) > dot2)
+				*(output + i * sobel_width + j) = *(sobel + i * sobel_width + j);
+			else
+				*(output + i * sobel_width + j) = 0;
+		}
+	}
 }
 
-void DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, unsigned char* canny)
+void NoneMaxSuppress(unsigned char* sobel, int sobel_width, int sobel_height, short* sobel_x, short* sobel_y, unsigned char* output)
 {
-	
+	for(int i = 0; i < sobel_height; i++)
+	{
+		for(int j = 0; j < sobel_width; j++)
+		{
+			if(i == 0 || j == 0)
+			{
+				*(output + i * sobel_width + j) = 0;
+			}
+			else 
+			{
+				short gx = *(sobel_x + i * sobel_width + j);
+				short gy = *(sobel_y + i * sobel_width + j);
+				short g1,g2,g3,g4;
+				float weight = 0.0f;
+				if(gx == 0 || gy == 0)
+				{
+					*(output + i * sobel_width + j) = 0;
+				}
+				else
+				{
+					if(abs(gx) < abs(gy) && gx * gy >= 0)
+					{
+						weight = (float)abs(gx) / abs(gy);
+						g1 = GetPixelVal(sobel, sobel_height, sobel_width, i    , j + 1);
+						g2 = GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j + 1);
+						g3 = GetPixelVal(sobel, sobel_height, sobel_width, i    , j - 1);
+						g4 = GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j - 1);
+					}
+					else if(abs(gx) >= abs(gy) && gx * gy > 0)
+					{
+						weight = (float)abs(gy) / abs(gx);
+						g1 = GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j    );
+						g2 = GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j + 1);
+						g3 = GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j    );
+						g4 = GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j - 1);
+					}
+					else if(abs(gx) > abs(gy) && gx * gy <= 0)
+					{
+						weight = (float)abs(gy) / abs(gx);
+						g1 = GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j    );
+						g2 = GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j - 1);
+						g3 = GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j    );
+						g4 = GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j + 1);
+					}
+					else if(abs(gx) <= abs(gy) && gx * gy < 0)
+					{
+						weight = (float)abs(gx) / abs(gy);
+						g1 = GetPixelVal(sobel, sobel_height, sobel_width, i    , j - 1);
+						g2 = GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j - 1);
+						g3 = GetPixelVal(sobel, sobel_height, sobel_width, i    , j + 1);
+						g4 = GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j + 1);
+					}
+					else
+					{
+						cout<<"none"<<endl;
+					}
+					int dot1 = g1 * (1 - weight) + g2 * weight;
+					int dot2 = g3 * (1 - weight) + g4 * weight;
+					if(*(sobel + i * sobel_width + j) > dot1 && *(sobel + i * sobel_width + j) > dot2)
+						*(output + i * sobel_width + j) = *(sobel + i * sobel_width + j);
+					else
+						*(output + i * sobel_width + j) = 0;
+				}
+			}
+		}
+	}	
+}
+
+__global__ void CUDA_DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, int min_val, int max_val, unsigned char* canny)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = id / sobel_width;
+	int j = id % sobel_width;
+	if(id >= sobel_width * sobel_height)
+		return;
+
+	if(i == 0 || i == sobel_height - 1 || j == 0 || j == sobel_width - 1)
+	{
+		*(canny + i * sobel_width + j) = 255;
+		return;
+	}
+	if(*(sobel + i * sobel_width + j) > max_val)
+	{
+		*(canny + i * sobel_width + j) = 255;
+	}
+	else if(*(sobel + i * sobel_width + j) > min_val && *(sobel + i * sobel_width + j) < max_val)
+	{
+		if(CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j - 1) > max_val ||
+		   CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j    ) > max_val ||
+		   CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j + 1) > max_val ||
+		   CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i    , j - 1) > max_val ||
+		   CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i    , j + 1) > max_val ||
+		   CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j - 1) > max_val ||
+		   CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j    ) > max_val ||
+		   CUDA_GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j + 1) > max_val)
+		{
+			*(canny + i * sobel_width + j) = 255;
+		}
+		else
+		{
+			*(canny + i * sobel_width + j) = 0;
+		}
+	}
+	else
+	{
+		*(canny + i * sobel_width + j) = 0;
+	}
+}
+
+void DoubleThreshold(unsigned char* sobel, int sobel_width, int sobel_height, int min_val, int max_val, unsigned char* canny)
+{
+	for(int i = 1; i < sobel_height - 1; i++)
+	{
+		for(int j = 1; j < sobel_width - 1; j++)
+		{
+			if(*(sobel + i * sobel_width + j) > max_val)
+			{
+				*(canny + i * sobel_width + j) = 255;
+			}
+			else if(*(sobel + i * sobel_width + j) > min_val && *(sobel + i * sobel_width + j) < max_val)
+			{
+				if(GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j - 1) > max_val ||
+				   GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j    ) > max_val ||
+				   GetPixelVal(sobel, sobel_height, sobel_width, i - 1, j + 1) > max_val ||
+				   GetPixelVal(sobel, sobel_height, sobel_width, i    , j - 1) > max_val ||
+				   GetPixelVal(sobel, sobel_height, sobel_width, i    , j + 1) > max_val ||
+				   GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j - 1) > max_val ||
+				   GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j    ) > max_val ||
+				   GetPixelVal(sobel, sobel_height, sobel_width, i + 1, j + 1) > max_val)
+				{
+					*(canny + i * sobel_width + j) = 255;
+				}
+				else
+				{
+					*(canny + i * sobel_width + j) = 0;
+				}
+			}
+			else
+			{
+				*(canny + i * sobel_width + j) = 0;
+			}
+		}
+	}
 }
 
