@@ -45,8 +45,8 @@ int main(int argc, char** argv)
 	}
 
 	
-	int width = 1280;
-	int height = 960;
+	int width = 960;
+	int height = 720;
 	int gauss_kernel_size = 3;
 	
 	int thread_size = 1024;
@@ -91,13 +91,6 @@ int main(int argc, char** argv)
 	
 	while(1)
 	{
-		/*camera >> img_src;
-		imshow("img_src", img_src);
-		if('q' == waitKey(100))
-		{
-			break;
-		}
-		continue;*/
 		if(cpu_gpu == 0)
 		{
 			camera >> img_src;
@@ -120,14 +113,8 @@ int main(int argc, char** argv)
 			/*read image*/
 			cout<<"gpu"<<endl;
 			camera >> img_src;
-			//imshow("img_src", img_src);
- 			//img_src	= imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
 			resize(img_src, img_src, Size(width, height), 0, 0);
 			cvtColor(img_src, img_gray, CV_BGR2GRAY);
-			//imshow("img_gray", img_gray);
-			//waitKey(100);
-			//continue;
-			
 			
 			/*load into gpu*/
 			if(CUDA_ERR_HANDLE(cudaMemcpy(cuda_gray, img_gray.data, width * height * sizeof(unsigned char), cudaMemcpyHostToDevice)))
@@ -138,46 +125,16 @@ int main(int argc, char** argv)
 			
 			/*gauss filter*/
 			CUDA_Gauss<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_gauss_kernel, gauss_kernel_size, cuda_gauss);
-			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
-			{
-				cout<<"syn fail"<<endl;
-				continue;
-			}
-			if(CUDA_ERR_HANDLE(cudaMemcpy(gauss, cuda_gauss, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost)))
+			
+			/*sobel edge detection*/
+			CUDA_Sobel<<<block_size, thread_size>>>(cuda_gauss, width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
+			if(CUDA_ERR_HANDLE(cudaMemcpy(sobel, cuda_sobel, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost)))
 			{
 				cout<<"memcpy fail2"<<endl;
 				continue;
 			}
-			img_gauss = Mat(Size(width, height), CV_8UC1, gauss);
-			//imshow("img_gauss_cuda", img_gauss);
-	        
-			/*sobel edge detection*/
-			//CUDA_Sobel<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
-			CUDA_Sobel_x<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_sobel_x);
-			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
-			{
-				cout<<"syn fail2"<<endl;
-				continue;
-			}
-			CUDA_Sobel_y<<<block_size, thread_size>>>(cuda_gray, width, height, cuda_sobel_y);
-			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
-			{
-				cout<<"syn fail3"<<endl;
-				continue;
-			}
-			CUDA_Sobel_sqrt<<<block_size, thread_size>>>(width, height, cuda_sobel_x, cuda_sobel_y, cuda_sobel);
-			if(CUDA_ERR_HANDLE(cudaMemcpy(sobel, cuda_sobel, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost)))
-			{
-				cout<<"memcpy fail3"<<endl;
-				continue;
-			}
 			img_sobel = Mat(Size(width, height), CV_8UC1, sobel);
 			imshow("img_sobel_gpu", img_sobel);	
-			if(CUDA_ERR_HANDLE(cudaDeviceSynchronize()))
-			{
-				cout<<"syn fail4"<<endl;
-				continue;
-			}
 		}
 		if(waitKey(1) == 'q')
 			break;
@@ -260,24 +217,23 @@ __global__ void CUDA_Sobel(unsigned char* img, int img_width, int img_height, sh
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j  ) * (-2) +
 	                                 CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (-1);
-	__syncthreads();
+	//__syncthreads();
 
-	/**(sobel_y + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (-1) +
+	*(sobel_y + i * img_width + j) = CUDA_GetPixelVal(img, img_height, img_width, i-1, j-1) * (-1) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i-1, j+1) * (1) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j-1) * (-2) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i  , j+1) * (2) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j-1) * (-1) +
 		                             CUDA_GetPixelVal(img, img_height, img_width, i+1, j+1) * (1);
-	__syncthreads();
-	*/
+	//__syncthreads();
 
-	*(output + i * img_width + j) = *(sobel_x + i * img_width + j);
-	//float val =sqrt(pow(*(sobel_x + i * img_width + j), 2) + pow(*(sobel_y + i * img_width + j), 2));
-	//*(output + i * img_width + j) = val;
-	/*if(val > 255)
+	//*(output + i * img_width + j) = *(sobel_x + i * img_width + j);
+	float val =sqrt(pow(*(sobel_x + i * img_width + j), 2) + pow(*(sobel_y + i * img_width + j), 2));
+	*(output + i * img_width + j) = val;
+	if(val > 255)
 		*(output + i * img_width + j) = 255;
 	else
-		*(output + i * img_width + j) = val;*/
+		*(output + i * img_width + j) = val;
 }
 
 __global__ void CUDA_Sobel_x(unsigned char* img, int img_width, int img_height, short* sobel_x)
