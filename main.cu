@@ -47,7 +47,7 @@ int main(int argc, char** argv)
 	int height = 480;
 	int gauss_kernel_size = 3;
 	
-	int thread_size = 1024;
+	int thread_size = width;
 	int block_size  = (width * height + thread_size - 1) / thread_size;
 
 	/*****cpu memory*****/
@@ -87,6 +87,7 @@ int main(int argc, char** argv)
 
 
 	VideoCapture camera(0);
+	//VideoCapture camera;
 	//camera.open("/home/katsuto/Pictures/Wallpapers/video.MP4");
 	Mat img_src;
  	//img_src	= imread("/home/katsuto/Pictures/Wallpapers/nvidia.jpg");
