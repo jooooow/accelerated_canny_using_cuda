@@ -1,0 +1,68 @@
+﻿C:\Program Files (x86)\MSBuild\Microsoft.Cpp\v4.0\V140\Microsoft.CppBuild.targets(392,5): warning MSB8028: The intermediate directory (x64\Debug\) contains files shared from another project (cuda_test.vcxproj).  This can lead to incorrect clean and rebuild behavior.
+  Compiling CUDA source file main.cu...
+  
+  C:\Users\Lenovo\Desktop\HLL_2019_Lib\canny_cuda\cuda_test>"F:\NVIDIA_CUDA\development\bin\nvcc.exe" -gencode=arch=compute_35,code=\"sm_35,compute_35\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\x86_amd64" -x cu  -I"C:\Program Files (x86)\Visual Leak Detector\include" -IF:\NVIDIA_CUDA\development\include -IF:\NVIDIA_CUDA\development\include  -G   --keep-dir x64\Debug -maxrregcount=0  --machine 64 --compile -cudart static  -g   -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc140.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\main.cu.obj "C:\Users\Lenovo\Desktop\HLL_2019_Lib\canny_cuda\cuda_test\main.cu" 
+f:\nvidia_cuda\development\include\crt\math_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(825): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(1760): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(2622): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(3461): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(4404): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(5302): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(6213): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(7094): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(7893): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(774): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(1629): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\device_double_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\sm_20_intrinsics.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\sm_20_intrinsics.h(926): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(774): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(1629): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+F:\opencv3.3.1\opencv\build\include\opencv2/stitching/detail/warpers.hpp(213): warning : overloaded virtual function "cv::detail::PlaneWarper::buildMaps" is only partially overridden in class "cv::detail::AffineWarper"
+  
+F:\opencv3.3.1\opencv\build\include\opencv2/stitching/detail/warpers.hpp(213): warning : overloaded virtual function "cv::detail::PlaneWarper::warp" is only partially overridden in class "cv::detail::AffineWarper"
+  
+F:\opencv3.3.1\opencv\build\include\opencv2/videostab/motion_stabilizing.hpp(106): warning : function "cv::videostab::IMotionStabilizer::stabilize(int, const std::vector<cv::Mat, std::allocator<cv::Mat>> &, std::pair<int, int>, cv::Mat *)" is hidden by "cv::videostab::GaussianMotionFilter::stabilize" -- virtual function override intended?
+  
+f:\nvidia_cuda\development\include\crt\math_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(825): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(1760): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(2622): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(3461): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(4404): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(5302): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(6213): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(7094): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(7893): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(774): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(1629): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\device_double_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\sm_20_intrinsics.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\sm_20_intrinsics.h(926): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(774): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt/device_functions.h(1629): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+F:\opencv3.3.1\opencv\build\include\opencv2/stitching/detail/warpers.hpp(213): warning : overloaded virtual function "cv::detail::PlaneWarper::buildMaps" is only partially overridden in class "cv::detail::AffineWarper"
+  
+F:\opencv3.3.1\opencv\build\include\opencv2/stitching/detail/warpers.hpp(213): warning : overloaded virtual function "cv::detail::PlaneWarper::warp" is only partially overridden in class "cv::detail::AffineWarper"
+  
+F:\opencv3.3.1\opencv\build\include\opencv2/videostab/motion_stabilizing.hpp(106): warning : function "cv::videostab::IMotionStabilizer::stabilize(int, const std::vector<cv::Mat, std::allocator<cv::Mat>> &, std::pair<int, int>, cv::Mat *)" is hidden by "cv::videostab::GaussianMotionFilter::stabilize" -- virtual function override intended?
+  
+  main.cu
+  device_functions.h is an internal header file and must not be used directly.  This file will be removed in a future CUDA release.  Please use cuda_runtime_api.h or cuda_runtime.h instead.
+f:\nvidia_cuda\development\include\crt\math_functions.h : warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(825): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(1760): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(2622): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(3461): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(4404): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(5302): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(6213): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(7094): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+f:\nvidia_cuda\development\include\crt\math_functions.h(7893): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+  cuda_test.vcxproj -> C:\Users\Lenovo\Desktop\HLL_2019_Lib\canny_cuda\x64\Debug\canny_cuda.exe
+  cuda_test.vcxproj -> C:\Users\Lenovo\Desktop\HLL_2019_Lib\canny_cuda\x64\Debug\canny_cuda.pdb (Partial PDB)
