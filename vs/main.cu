@@ -45,6 +45,9 @@ void NonMaxSuppress(unsigned char* sobel, int width, int height, short* gradient
 void DoubleThreshold(unsigned char* sobel, int width, int height, int min_val, int max_val, unsigned char* output);
 void IsWeakEdge(unsigned char* sobel, int width, int height, int min_val, int max_val, int i, int j, unsigned short* stack, unsigned short* top, unsigned char* output);
 
+__device__ void CUDA_SubDoubleThreshold(unsigned char* sobel, int width, int height, int min_val, int max_val, unsigned char* output);
+__device__ void CUDA_IsWeakEdge(unsigned char* sobel, int width, int height, int min_val, int max_val, int i, int j, unsigned short* stack, unsigned short* top, unsigned char* output);
+
 
 int main(void)
 {
@@ -118,7 +121,7 @@ void CUDA_Canny()
 		//resize(img_canny, img_canny, Size(640, 480), 0, 0);
 		//imshow("img_canny", img_canny);
 
-		DoubleThreshold(cpu_img2, width, height, 50, 90, cpu_img3);
+		//DoubleThreshold(cpu_img2, width, height, 50, 90, cpu_img3);
 
 		cudaThreadSynchronize();
 		sdkStopTimer(&timer_cublas);
@@ -332,6 +335,7 @@ __device__ void CheckAndConvert(unsigned char* img, int width, int height, int i
 __global__ void CUDA_DoubleThreshold2(unsigned char* sobel, int width, int height, int min_val, int max_val, unsigned char* canny)
 {
 	__shared__ unsigned char cache[SPLIT_SIZE_X2 * SPLIT_SIZE_Y2];
+	__shared__ unsigned char output[SPLIT_SIZE_X2 * SPLIT_SIZE_Y2];
 	int raw_index = SPLIT_SIZE_X2 * SPLIT_SIZE_Y2 * blockIdx.y * gridDim.x + blockIdx.x * SPLIT_SIZE_X2 + SPLIT_SIZE_X2 * gridDim.x * threadIdx.y + threadIdx.x;
 	for (int i = 0; i < SPLIT_SIZE_Y2; i++)
 	{
@@ -341,12 +345,14 @@ __global__ void CUDA_DoubleThreshold2(unsigned char* sobel, int width, int heigh
 		}
 	}
 
+	CUDA_SubDoubleThreshold(cache, SPLIT_SIZE_X2, SPLIT_SIZE_Y2, min_val, max_val, output);
+
 	for (int i = 0; i < SPLIT_SIZE_Y2; i++)
 	{
 		for (int j = 0; j < SPLIT_SIZE_X2; j++)
 		{
 			int new_id = blockIdx.y * SPLIT_SIZE_X2 * SPLIT_SIZE_Y2 * gridDim.x + i * SPLIT_SIZE_X2 * gridDim.x + blockIdx.x * SPLIT_SIZE_X2 + j;
-			canny[new_id] = cache[i * SPLIT_SIZE_X2 + j];
+			canny[new_id] = output[i * SPLIT_SIZE_X2 + j];
 		}
 	}
 }
@@ -499,6 +505,61 @@ void IsWeakEdge(unsigned char* sobel, int width, int height, int min_val, int ma
 {
 	if (IS_WEAK_EDGE(GetPixelVal(sobel, width, height, i, j)) ||
 		IS_STRONG_EDGE(GetPixelVal(sobel, width, height, i, j)))
+	{
+		output[i * width + j] = 255;
+		stack[*top] = i * width + j;
+		*top++;
+	}
+	else
+	{
+		output[i * width + j] = 0;
+	}
+}
+
+__device__ void CUDA_SubDoubleThreshold(unsigned char* sobel, int width, int height, int min_val, int max_val, unsigned char* output)
+{
+	unsigned short* weak_stack = new unsigned short[width * height];
+	unsigned short stack_top = 0;
+	unsigned short center_index = 0;
+
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			if (IS_STRONG_EDGE(CUDA_GetPixelVal(sobel, width, height, i, j)))
+			{
+				stack_top = 0;
+				CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i, j, weak_stack, &stack_top, output);
+				while (stack_top > 0)
+				{
+					center_index = weak_stack[stack_top - 1];
+					stack_top--;
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i - 1, j - 1, weak_stack, &stack_top, output);
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i - 1, j, weak_stack, &stack_top, output);
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i - 1, j + 1, weak_stack, &stack_top, output);
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i, j - 1, weak_stack, &stack_top, output);
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i, j + 1, weak_stack, &stack_top, output);
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i + 1, j - 1, weak_stack, &stack_top, output);
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i + 1, j, weak_stack, &stack_top, output);
+					CUDA_IsWeakEdge(sobel, width, height, min_val, max_val, i + 1, j + 1, weak_stack, &stack_top, output);
+					__syncthreads();
+				}
+			}
+			else if (IS_NOT_EDGE(CUDA_GetPixelVal(sobel, width, height, i, j)))
+			{
+				output[i * width + j] = 0;
+			}
+		}
+	}
+
+	delete[] weak_stack;
+	weak_stack = nullptr;
+}
+
+__device__ void CUDA_IsWeakEdge(unsigned char* sobel, int width, int height, int min_val, int max_val, int i, int j, unsigned short* stack, unsigned short* top, unsigned char* output)
+{
+	if (IS_WEAK_EDGE(CUDA_GetPixelVal(sobel, width, height, i, j)) ||
+		IS_STRONG_EDGE(CUDA_GetPixelVal(sobel, width, height, i, j)))
 	{
 		output[i * width + j] = 255;
 		stack[*top] = i * width + j;
