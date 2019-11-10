@@ -7,4 +7,10 @@ CUDA10
 OpenCV3  
 NVIDIA Jetson Nano  
 
-## features
+## steps  
+1.allocate image into SM  
+2.extend subimage  
+3.gauss and sobel  
+4.cut edge  
+5.none maximum suppress  
+6.double threshold  
