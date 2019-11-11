@@ -17,8 +17,8 @@ using namespace cv;
 
 #define SPLIT_SIZE_X 32
 #define SPLIT_SIZE_Y 24
-#define LINK_SIZE_X  8
-#define LINK_SIZE_Y  6
+#define LINK_SIZE_X  16
+#define LINK_SIZE_Y  12
 #define BLOCK_SIZE_X 36
 #define BLOCK_SIZE_Y 28
 
